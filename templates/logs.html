@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGuard - Logs Explorer</title>
+    <link rel="icon" type="image/jpeg" href="/static/logo.jpg">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            bg: '#080C14',
+                            card: '#0F1626',
+                            border: '#1E293B',
+                            accent: '#6366F1',
+                            success: '#10B981',
+                            danger: '#EF4444',
+                            warning: '#F59E0B',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-card {
+            background: rgba(15, 22, 38, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(30, 41, 59, 0.5);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+    </style>
+</head>
+<body class="bg-brand-bg text-slate-200 min-h-screen font-sans pb-12 relative overflow-x-hidden">
+    <!-- Glowing background blurred blobs -->
+    <div class="absolute w-[500px] h-[500px] bg-indigo-950/10 rounded-full blur-[150px] -top-80 -right-40 -z-10"></div>
+    <div class="absolute w-[500px] h-[500px] bg-emerald-950/5 rounded-full blur-[150px] top-[400px] -left-80 -z-10"></div>
+
+    <!-- Navigation Header -->
+    <header class="border-b border-brand-border/60 sticky top-0 bg-brand-bg/85 backdrop-blur-md z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <img src="/static/logo.jpg" alt="WebGuard Logo" class="w-9 h-9 rounded-xl object-cover border border-brand-border/60 shadow-lg shadow-indigo-500/5">
+                <div>
+                    <h1 class="text-lg font-bold text-white tracking-tight leading-none">WebGuard</h1>
+                    <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Proxy Shield Dashboard</span>
+                </div>
+            </div>
+            
+            <nav class="flex items-center gap-6">
+                <a href="/dashboard" class="text-sm font-semibold text-slate-400 hover:text-slate-200 transition px-1 py-4">Dashboard</a>
+                <a href="/logs" class="text-sm font-semibold text-brand-accent border-b-2 border-brand-accent px-1 py-4">Logs Explorer</a>
+                <div class="flex items-center gap-2 pl-4 border-l border-brand-border">
+                    <span class="w-2.5 h-2.5 bg-brand-success rounded-full animate-pulse shadow-sm shadow-emerald-500"></span>
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-widest">LIVE</span>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        <!-- Breadcrumb & Header Title -->
+        <div class="mb-6 flex justify-between items-center">
+            <div>
+                <h2 class="text-2xl font-extrabold text-white tracking-tight">Logs Explorer</h2>
+                <p class="text-slate-400 text-sm">Query and audit WAF request records.</p>
+            </div>
+            <button onclick="refreshData()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 transition text-xs font-semibold rounded-xl text-white uppercase tracking-wider shadow-lg shadow-indigo-500/20 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
+                </svg>
+                Refresh
+            </button>
+        </div>
+
+        <!-- Filter controls -->
+        <section class="glass-card rounded-2xl p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Search bar -->
+                <div class="md:col-span-2">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Search</label>
+                    <input type="text" id="search-input" placeholder="Search by Client IP, URL, or matched payload..." 
+                           class="w-full bg-brand-bg border border-brand-border/60 hover:border-slate-700 focus:border-brand-accent focus:outline-none rounded-xl px-4 py-2.5 text-sm transition placeholder:text-slate-600">
+                </div>
+
+                <!-- Status Filter -->
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Status / Reason</label>
+                    <select id="status-filter" class="w-full bg-brand-bg border border-brand-border/60 hover:border-slate-700 focus:border-brand-accent focus:outline-none rounded-xl px-4 py-2.5 text-sm transition">
+                        <option value="">All Traffic</option>
+                        <option value="Allowed">Allowed Requests</option>
+                        <option value="Blocked">Blocked Requests (All)</option>
+                        <option value="SQLi">Blocked: SQL Injection</option>
+                        <option value="XSS">Blocked: Cross-Site Scripting</option>
+                        <option value="Traversal">Blocked: Path Traversal</option>
+                        <option value="Rate Limit">Blocked: Rate Limit</option>
+                    </select>
+                </div>
+
+                <!-- Trigger Buttons -->
+                <div class="flex items-end gap-2">
+                    <button onclick="applyFilters()" class="flex-1 px-4 py-2.5 bg-brand-border text-white hover:bg-slate-800 transition font-bold text-sm rounded-xl border border-brand-border">
+                        Apply
+                    </button>
+                    <button onclick="clearFilters()" class="px-4 py-2.5 bg-transparent text-slate-400 hover:text-slate-200 transition font-medium text-sm rounded-xl">
+                        Clear
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main logs table card -->
+        <section class="glass-card rounded-2xl p-6">
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-brand-border/60 text-slate-500 text-xs font-semibold uppercase tracking-wider">
+                            <th class="py-3 px-4">Timestamp</th>
+                            <th class="py-3 px-4">Client IP</th>
+                            <th class="py-3 px-4">Method</th>
+                            <th class="py-3 px-4">URL</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4">Violation Details</th>
+                            <th class="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody" class="text-sm font-medium">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination Control Bar -->
+            <div class="mt-6 border-t border-brand-border/40 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="text-xs text-slate-500" id="pagination-info">
+                    Showing 0 to 0 of 0 entries
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn-prev" onclick="changePage(-1)" class="px-3.5 py-1.5 bg-brand-border hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-brand-border transition text-xs font-semibold rounded-lg text-slate-300 uppercase tracking-wider">
+                        Previous
+                    </button>
+                    <span class="text-xs font-mono text-slate-400 bg-brand-bg px-3 py-1.5 rounded-lg border border-brand-border/40" id="page-indicator">Page 1 / 1</span>
+                    <button id="btn-next" onclick="changePage(1)" class="px-3.5 py-1.5 bg-brand-border hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-brand-border transition text-xs font-semibold rounded-lg text-slate-300 uppercase tracking-wider">
+                        Next
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Details Inspection Modal -->
+    <div id="details-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="glass-card max-w-2xl w-full rounded-2xl overflow-hidden border border-brand-border shadow-2xl">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 bg-brand-card border-b border-brand-border/60 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-brand-danger" id="modal-indicator"></span>
+                    <h3 class="text-md font-bold text-white" id="modal-title">Threat Details</h3>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-200 transition text-lg">&times;</button>
+            </div>
+            <!-- Modal Body -->
+            <div class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider block">Timestamp</span>
+                        <span class="text-sm font-semibold text-slate-300" id="modal-time">-</span>
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider block">Client IP</span>
+                        <span class="text-sm font-mono text-slate-300" id="modal-ip">-</span>
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider block">HTTP Method</span>
+                        <span class="text-sm font-semibold text-slate-300" id="modal-method">-</span>
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-500 uppercase tracking-wider block">Blocked For</span>
+                        <span class="text-sm font-bold text-brand-danger bg-brand-danger/10 px-2 py-0.5 rounded border border-brand-danger/20 inline-block" id="modal-reason">-</span>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-500 uppercase tracking-wider block">Requested URL</span>
+                    <span class="text-sm font-mono text-slate-300 break-all bg-brand-bg/50 px-3 py-1.5 rounded border border-brand-border/40 mt-1 block" id="modal-url">-</span>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-500 uppercase tracking-wider block">Matched Signature / Logged Payload</span>
+                    <pre class="text-xs font-mono text-brand-danger bg-red-950/20 px-3 py-2.5 rounded border border-red-500/20 mt-1 block overflow-x-auto whitespace-pre-wrap max-h-48" id="modal-payload">-</pre>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-500 uppercase tracking-wider block">User-Agent</span>
+                    <span class="text-xs font-mono text-slate-400 break-all block mt-1" id="modal-ua">-</span>
+                </div>
+            </div>
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 bg-brand-card border-t border-brand-border/60 flex justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 bg-brand-border text-slate-300 rounded-xl hover:bg-slate-800 transition font-semibold text-xs uppercase tracking-wider">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Pagination state
+        let currentPage = 1;
+        const pageSize = 20;
+        let totalCount = 0;
+
+        // Fetch logs data
+        async function fetchLogs() {
+            const tbody = document.getElementById('logs-tbody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="py-8 text-center text-slate-500">Querying database...</td>
+                </tr>`;
+
+            const searchVal = document.getElementById('search-input').value;
+            const statusFilter = document.getElementById('status-filter').value;
+            
+            // Build Query Params
+            let url = `/api/logs?page=${currentPage}&size=${pageSize}`;
+            
+            // If the status filter maps to specific reasons, send those
+            if (statusFilter) {
+                if (statusFilter === 'Allowed' || statusFilter === 'Blocked') {
+                    url += `&status=${statusFilter}`;
+                } else {
+                    // Reason specific filter (SQLi, XSS, etc)
+                    url += `&status=Blocked&reason=${statusFilter}`;
+                }
+            }
+            if (searchVal) {
+                url += `&search=${encodeURIComponent(searchVal)}`;
+            }
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to query logs');
+                const data = await response.json();
+
+                totalCount = data.total;
+                const logs = data.logs;
+                
+                if (logs.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="py-8 text-center text-slate-500">No logs found matching selected criteria.</td>
+                        </tr>`;
+                    updatePaginationUI(0, 0);
+                    return;
+                }
+
+                let html = '';
+                logs.forEach(log => {
+                    const localTime = new Date(log.timestamp).toLocaleString();
+                    const statusClass = log.status === 'Allowed' 
+                        ? 'text-brand-success bg-brand-success/10 border border-brand-success/20' 
+                        : 'text-brand-danger bg-brand-danger/10 border border-brand-danger/20';
+                    
+                    const isBlocked = log.status === 'Blocked';
+                    const actionButton = isBlocked
+                        ? `<button onclick="openModal(${JSON.stringify(log).replace(/"/g, '&quot;')})" class="px-2.5 py-1 bg-brand-border/60 hover:bg-slate-700 transition text-[11px] font-semibold rounded-lg uppercase tracking-wider text-slate-300">Inspect</button>`
+                        : `<span class="text-xs text-slate-600">-</span>`;
+
+                    const displayReason = isBlocked ? log.reason : '<span class="text-slate-600">Clean</span>';
+
+                    html += `
+                        <tr class="border-b border-brand-border/40 hover:bg-brand-card/30 transition">
+                            <td class="py-3 px-4 text-slate-400 font-mono text-xs">${localTime}</td>
+                            <td class="py-3 px-4 font-mono text-slate-300">${log.client_ip}</td>
+                            <td class="py-3 px-4 text-slate-300"><span class="font-bold">${log.method}</span></td>
+                            <td class="py-3 px-4 font-mono text-slate-400 truncate max-w-sm" title="${log.url}">${log.url}</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 text-xs font-semibold rounded-full ${statusClass}">${log.status}</span></td>
+                            <td class="py-3 px-4">${displayReason}</td>
+                            <td class="py-3 px-4 text-right">${actionButton}</td>
+                        </tr>`;
+                });
+                tbody.innerHTML = html;
+                
+                const startIdx = (currentPage - 1) * pageSize + 1;
+                const endIdx = Math.min(currentPage * pageSize, totalCount);
+                updatePaginationUI(startIdx, endIdx);
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="py-8 text-center text-brand-danger">Error loading data. Verify connection to MiniWAF.</td>
+                    </tr>`;
+            }
+        }
+
+        function updatePaginationUI(start, end) {
+            document.getElementById('pagination-info').innerText = `Showing ${start} to ${end} of ${totalCount} entries`;
+            const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+            document.getElementById('page-indicator').innerText = `Page ${currentPage} / ${totalPages}`;
+            
+            document.getElementById('btn-prev').disabled = currentPage === 1;
+            document.getElementById('btn-next').disabled = currentPage >= totalPages;
+        }
+
+        function changePage(direction) {
+            currentPage += direction;
+            fetchLogs();
+        }
+
+        function applyFilters() {
+            currentPage = 1;
+            fetchLogs();
+        }
+
+        function clearFilters() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('status-filter').value = '';
+            currentPage = 1;
+            fetchLogs();
+        }
+
+        function refreshData() {
+            fetchLogs();
+        }
+
+        // Modal triggers (same as dashboard)
+        function openModal(log) {
+            document.getElementById('modal-time').innerText = new Date(log.timestamp).toLocaleString();
+            document.getElementById('modal-ip').innerText = log.client_ip;
+            document.getElementById('modal-method').innerText = log.method;
+            document.getElementById('modal-reason').innerText = log.reason;
+            document.getElementById('modal-url').innerText = log.url;
+            document.getElementById('modal-payload').innerText = log.payload || "No detailed payload logged.";
+            document.getElementById('modal-ua').innerText = log.user_agent || "Not provided";
+            
+            // Set indicator color based on threat or allowed
+            const indicator = document.getElementById('modal-indicator');
+            const title = document.getElementById('modal-title');
+            if (log.status === 'Allowed') {
+                indicator.className = 'w-3 h-3 rounded-full bg-brand-success';
+                title.innerText = 'Log Details';
+                document.getElementById('modal-reason').className = 'text-sm font-bold text-brand-success bg-brand-success/10 px-2 py-0.5 rounded border border-brand-success/20 inline-block';
+            } else {
+                indicator.className = 'w-3 h-3 rounded-full bg-brand-danger';
+                title.innerText = 'Threat Details';
+                document.getElementById('modal-reason').className = 'text-sm font-bold text-brand-danger bg-brand-danger/10 px-2 py-0.5 rounded border border-brand-danger/20 inline-block';
+            }
+
+            document.getElementById('details-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('details-modal').classList.add('hidden');
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchLogs();
+        });
+    </script>
+</body>
+</html>
