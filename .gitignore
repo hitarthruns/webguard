@@ -18,3 +18,8 @@ env/
 .vscode/
 .gemini/
 antigravity-ide/
+
+# Local plans and walkthroughs
+walkthrough.md
+implementation_plan.md
+task.md
